@@ -10,7 +10,7 @@ generator client {
 
 //disini konekan db
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -47,4 +47,21 @@ model Pembicara {
   events    Event[]
 
   @@map("speakersnp")
+}
+
+model Users {
+  id        Int     @id @default(autoincrement())
+  name      String
+  email     String  @unique
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("users") 
+}
+
+model Roles {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique
+
+  @@map("role")
 }
