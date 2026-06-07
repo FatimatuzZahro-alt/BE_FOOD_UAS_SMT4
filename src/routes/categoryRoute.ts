@@ -9,10 +9,10 @@ import express from "express";
 
 const router = express.Router();
 
-router.get("/", getCategories);
-router.post("/", createCategory);
-router.get("/:id", getCategoryById);
-router.put("/:id", updateCategory);
-router.delete("/:id", deleteCategory);
+router.get("/", getCategories); //menampilkan data categori
+router.post("/", createCategory); //menyimpan data categori
+router.get("/:id", getCategoryById); //menampilkan categori by  id
+router.put("/:id", updateCategory); //mengupdate data categori by id
+router.delete("/:id", deleteCategory); //menghapus data categori by id
 
 export default router;

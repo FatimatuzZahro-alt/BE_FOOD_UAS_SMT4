@@ -10,7 +10,7 @@ generator client {
 
 //disini konekan db
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

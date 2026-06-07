@@ -77,5 +77,4 @@ export const deletePembicara = async (req: Request, res: Response) => {
 
   await prisma.pembicara.delete({ where: { id } });
   res.json({ message: "Pembicara berhasil dihapus" });
-
 };

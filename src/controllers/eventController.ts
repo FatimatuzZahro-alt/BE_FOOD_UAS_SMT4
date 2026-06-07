@@ -87,5 +87,4 @@ export const deleteEvent = async (req: Request, res: Response) => {
 
   await prisma.event.delete({ where: { id } });
   res.json({ message: "Event berhasil dihapus" });
-
 };
