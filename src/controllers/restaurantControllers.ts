@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import  prisma  from "../lib/db";
+import  prisma  from "../lib/db.js";
 
 
 // 1. menampilkan data categori
