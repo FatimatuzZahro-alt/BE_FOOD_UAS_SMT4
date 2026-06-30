@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+// ENUM
+
+enum Role {
+  CUSTOMER
+  RESTAURANT_ADMIN
+}
+
+enum MenuCategory {
+  MAKANAN
+  MINUMAN
+  DESSERT
+  SNACK
+}
+
+// USER
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ratings               Rating[]
+  rekomendasiRequests   RekomendasiRequest[]
+  restaurant            Restaurant?
+
+  @@map("users")
+}
+
+
+// RESTAURANT
+
+model Restaurant {
+  id          Int     @id @default(autoincrement())
+  name        String
+  address     String
+  description String? @db.Text
+  imageUrl    String?
+  phone       String?
+  openTime    String?
+  closeTime   String?
+  adminId     Int     @unique
+  admin       User    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  avgPrice        Float @default(0)
+  fasilitasScore  Int   @default(0)
+  avgFoodKualitas Float @default(0)
+  avgKenyamanan   Float @default(0)
+  avgEstetika     Float @default(0)
+  totalRating     Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menus               Menu[]
+  fasilitases         Fasilitas[]
+  ratings             Rating[]
+  rekomendasiResults  RekomendasiHasil[]
+
+  @@index([avgPrice])
+  @@index([avgFoodKualitas])   // ← sesuai nama kolom
+  @@map("restaurants")
+}
+
+
+// MENU
+
+
+model Menu {
+  id           Int          @id @default(autoincrement())
+  restaurantId Int
+  name         String
+  description  String?      @db.Text
+  price        Float
+  category     MenuCategory
+  imageUrl     String?
+  isAvailable  Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, category])
+  @@index([price])
+  @@map("menus")
+}
+
+
+// FASILITAS
+
+model Fasilitas {
+  id           Int     @id @default(autoincrement())
+  restaurantId Int
+  name         String
+  available    Boolean @default(true)
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, name])
+  @@map("fasilitases")
+}
+
+
+// RATING
+
+model Rating {
+  id           Int @id @default(autoincrement())
+  userId       Int
+  restaurantId Int
+
+  foodKualitasScore Int
+  kenyamananScore   Int
+  estetikaScore     Int
+
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@index([restaurantId])
+  @@map("ratings")
+}
+
+
+// REKOMENDASI REQUEST
+
+model RekomendasiRequest {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  keyword    String?
+  maxPrice   Float?
+  category   String?
+  facilities String?
+  createdAt  DateTime @default(now())
+
+  weights RekomendasiWeight[]
+  results RekomendasiHasil[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("rekomendasi_requests")
+}
+
+// REKOMENDASI WEIGHT
+
+model RekomendasiWeight {
+  id        Int    @id @default(autoincrement())
+  requestId Int
+  criteria  String
+  weight    Float
+
+  request RekomendasiRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, criteria])
+  @@map("rekomendasi_weights")
+}
+
+
+// REKOMENDASI HASIL
+model RekomendasiHasil {
+  id           Int   @id @default(autoincrement())
+  requestId    Int
+  restaurantId Int
+  rank         Int
+  wpScore      Float
+
+  request    RekomendasiRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  restaurant Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("rekomendasi_hasil")
+}
