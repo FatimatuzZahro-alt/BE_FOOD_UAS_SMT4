@@ -44,8 +44,8 @@ export const getAllUsers = async (req:Request, res: Response) => {
             restaurant: {
                  select: { id: true, name: true }
             },
-            orderBy: { createdAt: " desc" }
-        }
+        },
+        orderBy: { createdAt: "desc" }
     });
     res.json(users);
 }
