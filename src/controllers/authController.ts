@@ -116,5 +116,41 @@ export const getProfile = async (req: Request, res: Response) => {
         }
     });
 
+
     return res.json({ data:user });
+}
+
+export const updateProfile = async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+    const { name, email, password } = req.body;
+
+    if (!name && !email && !password) {
+        return res.status(400).json({ message: "Minimal isi salah satu field" });
+    }
+
+    // cek email baru sudah dipakai orang lain belum
+    if (email) {
+        const existingEmail = await prisma.user.findUnique({ where: { email } });
+        if (existingEmail && existingEmail.id !== userId) {
+            return res.status(409).json({ message: "Email sudah dipakai" });
+        }
+    }
+
+    const data: any = {};
+    if (name) data.name = name;
+    if (email) data.email = email;
+    if (password) data.password = await bcrypt.hash(password, 10);
+
+    const updated = await prisma.user.update({
+        where: { id: userId },
+        data,
+        select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true
+        }
+    });
+
+    return res.json({ message: "Profil berhasil diupdate", data: updated });
 }
