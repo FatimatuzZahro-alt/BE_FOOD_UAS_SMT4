@@ -141,3 +141,50 @@ export const deleteRestaurant = async (req: Request, res: Response) => {
 
   res.json({ message: "Restaurant berhasil dihapus" });
 }
+
+// dashboard restaurant admin
+export const getDashboardRestaurant = async (req: Request, res: Response) => {
+    const adminId = (req as any).user.userId;
+
+    const restaurant = await prisma.restaurant.findUnique({
+        where: { adminId },
+        include: {
+            menus: true,
+            fasilitases: true,
+            ratings: {
+                include: { user: { select: { id: true, name: true } } },
+                orderBy: { createdAt: "desc" },
+                take: 5
+            }
+        }
+    });
+
+    if (!restaurant) {
+        return res.status(404).json({ message: "Anda belum memiliki restaurant" });
+    }
+
+    const totalMenu = restaurant.menus.length;
+    const totalFasilitas = restaurant.fasilitases.length;
+    const totalRating = restaurant.ratings.length;
+
+    return res.json({
+        restaurant: {
+            id: restaurant.id,
+            name: restaurant.name,
+            address: restaurant.address,
+            imageUrl: restaurant.imageUrl,
+            phone: restaurant.phone,
+            openTime: restaurant.openTime,
+            closeTime: restaurant.closeTime,
+        },
+        totalMenu,
+        totalFasilitas,
+        totalRating,
+        avgScore: {
+            foodKualitas: restaurant.avgFoodKualitas,
+            kenyamanan: restaurant.avgKenyamanan,
+            estetika: restaurant.avgEstetika,
+        },
+        ratingTerbaru: restaurant.ratings
+    });
+}

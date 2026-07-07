@@ -5,6 +5,7 @@ import {
     updateRestaurant,
     deleteRestaurant,
     getMyRestaurant,
+    getDashboardRestaurant,
 } from "../controllers/restaurantControllers.js";
 import express from "express";
 import { authenticate, authorize } from "../midlewares/authMiddleware.js";
@@ -17,5 +18,6 @@ router.get("/:id", getRestaurantById); //menampilkan resto by  id
 router.put("/:id", authenticate, authorize("RESTAURANT_ADMIN"), updateRestaurant); //mengupdate data resto by id
 router.delete("/:id", authenticate, authorize("RESTAURANT_ADMIN"), deleteRestaurant); //menghapus data resto by id
 router.get("/me", authenticate, authorize("RESTAURANT_ADMIN"), getMyRestaurant);
+router.get("/dashboard", authenticate, authorize("RESTAURANT_ADMIN"), getDashboardRestaurant);
 
 export default router;

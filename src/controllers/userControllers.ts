@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/db.js";
 import bcrypt from "bcrypt";
-import { Role } from "@prisma/client";
 
 //1. menampilkan profile sendiri
 export const getProfile = async (req: Request, res: Response) => {
@@ -23,15 +22,22 @@ export const getProfile = async (req: Request, res: Response) => {
 //2. update profile user yang login
 export const updateProfile = async (req: Request, res:Response) => {
     const userId = (req as any).user.userId;
-    const { name, password } = req.body;
+    const { name, password, email } = req.body;
 
-    if (!name && !password) {
-        return res.status(400).json({ message: "Minimal isi nama atau password"})
+    if (!name && !email && !password) {
+        return res.status(400).json({ message: "Minimal isi nama, email atau password"})
     }
 
     const data: any = {};
     if (name) data.name = name;
-    if (password) data.pasword=await bcrypt.hash(password, 10);
+    if (password) data.password=await bcrypt.hash(password, 10);
+    if (email) {
+    const existingEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingEmail && existingEmail.id !== userId) {
+        return res.status(409).json({ message: "Email sudah dipakai" });
+    }
+    data.email = email;
+}
 
     const updated = await prisma.user.update({
         where: { id: userId },
