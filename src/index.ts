@@ -8,6 +8,7 @@ import fasilitasRoute from "./routes/fasilitasRoute.js";
 import ratingRoute from "./routes/ratingRoute.js";
 import rekomendasiRoute from "./routes/rekomendasiRoute.js";
 import userRoute from "./routes/userRoute.js";
+import superAdminRoute from "./routes/superAdminRoute.js";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -26,6 +27,7 @@ app.use("/fasilitas", fasilitasRoute);
 app.use("/rating", ratingRoute);
 app.use("/rekomendasi", rekomendasiRoute);
 app.use("/user", userRoute);
+app.use("/superAdmin", superAdminRoute);
 
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);

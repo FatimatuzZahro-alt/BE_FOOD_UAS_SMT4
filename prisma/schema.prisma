@@ -13,6 +13,7 @@ datasource db {
 enum Role {
   CUSTOMER
   RESTAURANT_ADMIN
+  SUPER_ADMIN
 }
 
 enum MenuCategory {
