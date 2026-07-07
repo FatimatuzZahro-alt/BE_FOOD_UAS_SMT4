@@ -16,7 +16,7 @@ router.get("/", getAllRestaurants);
 router.post("/", authenticate, authorize("RESTAURANT_ADMIN"), createRestaurant);
 
 
-router.get("/me", authenticate, authorize("RESTAURANT_ADMIN"), getMyRestaurant);
+router.get("/me", authenticate, getMyRestaurant);
 router.get("/dashboard", authenticate, authorize("RESTAURANT_ADMIN"), getDashboardRestaurant);
 
 
