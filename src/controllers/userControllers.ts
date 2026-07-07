@@ -3,21 +3,21 @@ import prisma from "../lib/db.js";
 import bcrypt from "bcrypt";
 import { Role } from "@prisma/client";
 
-//1. menampilkan semua user
-export const getAllUser = async (req: Request, res: Response)=>{
-    const user = await prisma.user.findMany({
+//1. menampilkan profile sendiri
+export const getProfile = async (req: Request, res: Response) => {
+    const user = await prisma.user.findUnique({
+        where: { id: (req as any).user.userId },
         select: {
             id: true,
             email: true,
             name: true,
             role: true,
             createdAt: true,
-            restaurant: { select: { id:true, name: true} }
-        },
-        orderBy: { createdAt: "desc" }
+        }
     });
 
-    res.json(user);
+
+    return res.json({ data:user });
 }
 
 //2. update profile user yang login
