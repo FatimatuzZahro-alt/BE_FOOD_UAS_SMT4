@@ -87,7 +87,7 @@ model Menu {
   description  String?      @db.Text
   price        Float
   category     MenuCategory
-  imageUrl     String?
+  imageUrl     String?      @db.Text
   isAvailable  Boolean      @default(true)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt

@@ -144,3 +144,20 @@ const recalcRestaurantRating = async (restaurantId: number) => {
         }
     });
 }
+
+// 5. menampilkan riwayat rating milik user yang login
+export const getMyRatings = async (req: Request, res: Response) => {
+    const userId = (req as any).user.userId;
+
+    const ratings = await prisma.rating.findMany({
+        where: { userId },
+        include: {
+            restaurant: {
+                select: { id: true, name: true, address: true, imageUrl: true }
+            }
+        },
+        orderBy: { createdAt: "desc" }
+    });
+
+    res.json(ratings);
+}
