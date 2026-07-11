@@ -188,10 +188,24 @@ model RekomendasiHasil {
 }
 
 model Kriteria {
-  id    Int    @id @default(autoincrement())
-  nama  String @unique
-  jenis String // "cost" atau "benefit"
-  bobot Float  @default(0)
+  id          Int          @id @default(autoincrement())
+  nama        String       @unique
+  jenis       String
+  bobot       Float        @default(0)
+  subKriteria SubKriteria[]
 
   @@map("kriterias")
+}
+
+model SubKriteria {
+  id          Int    @id @default(autoincrement())
+  kriteriaId  Int
+  keterangan  String // contoh: "Rp 0 - Rp 10.000"
+  minNilai    Float? // 0
+  maxNilai    Float? // 10000
+  skor        Int    // 1-5
+
+  kriteria Kriteria @relation(fields: [kriteriaId], references: [id], onDelete: Cascade)
+
+  @@map("sub_kriterias")
 }
