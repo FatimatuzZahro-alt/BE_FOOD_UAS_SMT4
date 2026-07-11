@@ -177,7 +177,14 @@ export const getRekomendasi = async (req: Request, res: Response) => {
     const result = ranked.map((r: any) => ({
         rank: r.rank,
         wpScore: parseFloat(r.vScore.toFixed(4)),
-        nilaiSkala: r.nilaiSkala, // ← tampilkan nilai skala yg dipakai untuk hitung
+        sScore: parseFloat(r.sScore.toFixed(4)),  // ← tambah
+        nilaiSkala: {                              
+            harga: r.nilaiSkala.harga,
+            foodKualitas: r.nilaiSkala.foodKualitas,
+            kenyamanan: r.nilaiSkala.kenyamanan,
+            estetika: r.nilaiSkala.estetika,
+            fasilitas: r.nilaiSkala.fasilitas,
+        },
         restaurant: {
             id: r.restaurant.id,
             name: r.restaurant.name,
