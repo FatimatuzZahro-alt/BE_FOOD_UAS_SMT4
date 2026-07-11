@@ -188,3 +188,33 @@ export const getDashboardRestaurant = async (req: Request, res: Response) => {
         ratingTerbaru: restaurant.ratings
     });
 }
+
+// reviews restaurant admin (semua rating, tanpa limit)
+export const getRestaurantReviews = async (req: Request, res: Response) => {
+    const adminId = (req as any).user.userId;
+
+    const restaurant = await prisma.restaurant.findUnique({
+        where: { adminId },
+        include: {
+            ratings: {
+                include: { user: { select: { id: true, name: true } } },
+                orderBy: { createdAt: "desc" }
+                // gak ada take, jadi ambil semua
+            }
+        }
+    });
+
+    if (!restaurant) {
+        return res.status(404).json({ message: "Anda belum memiliki restaurant" });
+    }
+
+    return res.json({
+        totalRating: restaurant.ratings.length,
+        avgScore: {
+            foodKualitas: restaurant.avgFoodKualitas,
+            kenyamanan: restaurant.avgKenyamanan,
+            estetika: restaurant.avgEstetika,
+        },
+        reviews: restaurant.ratings
+    });
+}

@@ -13,13 +13,13 @@ import prisma from "../lib/db.js";
 //   S(i) = (harga^-W) * (foodKualitas^W) * (kenyamanan^W) * (estetika^W) * (fasilitas^W)
 //   V(i) = S(i) / jumlah semua S  ← normalisasi
 
-// ── Helper: konversi harga ke skala 1-5 (RANGE TETAP, bukan dinamis) ──
-// Range Harga                  → Nilai (Skala Cost)
-// Rp 0      - Rp 10.000        → 5 (sangat murah)
-// Rp 10.001 - Rp 20.000        → 4 (murah)
-// Rp 20.001 - Rp 30.000        → 3 (sedang)
-// Rp 30.001 - Rp 40.000        → 2 (mahal)
-// Rp 40.001 ke atas            → 1 (sangat mahal)
+//  Helper: konversi harga ke skala 1-5 (RANGE TETAP, bukan dinamis) 
+// Range Harga                   Nilai (Skala Cost)
+// Rp 0      - Rp 10.000         5 (sangat murah)
+// Rp 10.001 - Rp 20.000         4 (murah)
+// Rp 20.001 - Rp 30.000         3 (sedang)
+// Rp 30.001 - Rp 40.000         2 (mahal)
+// Rp 40.001 ke atas             1 (sangat mahal)
 const konversiHargaKeSkala = (harga: number): number => {
     if (harga <= 10000) return 5;
     if (harga <= 20000) return 4;
@@ -29,12 +29,12 @@ const konversiHargaKeSkala = (harga: number): number => {
 }
 
 // Helper: konversi jumlah fasilitas ke skala 1-5 (RANGE TETAP)
-// Jumlah Fasilitas → Nilai (Skala Benefit)
-// 1                 → 1
-// 2                 → 2
-// 3                 → 3
-// 4                 → 4
-// 5 atau lebih      → 5
+// Jumlah Fasilitas = Nilai (Skala Benefit)
+// 1                  1
+// 2                  2
+// 3                  3
+// 4                  4
+// 5 atau lebih       5
 const konversiFasilitasKeSkala = (jumlahFasilitas: number): number => {
     if (jumlahFasilitas >= 5) return 5;
     if (jumlahFasilitas <= 0) return 1;

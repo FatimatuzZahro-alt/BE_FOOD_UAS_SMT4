@@ -49,7 +49,7 @@ model Restaurant {
   name        String
   address     String
   description String? @db.Text
-  imageUrl    String?
+  imageUrl    String? @db.Text
   phone       String?
   openTime    String?
   closeTime   String?
@@ -185,4 +185,13 @@ model RekomendasiHasil {
   restaurant Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@map("rekomendasi_hasil")
+}
+
+model Kriteria {
+  id    Int    @id @default(autoincrement())
+  nama  String @unique
+  jenis String // "cost" atau "benefit"
+  bobot Float  @default(0)
+
+  @@map("kriterias")
 }
