@@ -68,7 +68,7 @@ model Restaurant {
   adminId     Int      @unique
   admin       User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
-  // 🛠️ TAMBAHAN FIELD: Menyimpan jenis klasifikasi restoran
+  //  Menyimpan jenis klasifikasi restoran
   category    RestaurantCategory
 
   avgPrice        Float @default(0)
@@ -122,6 +122,18 @@ model Fasilitas {
   @@map("fasilitases")
 }
 
+// MODEL BARU: nyimpen checklist nama fasilitas yang dipilih customer per request
+model RekomendasiFasilitasFilter {
+  id        Int           @id @default(autoincrement())
+  requestId Int
+  name      FasilitasName
+
+  request RekomendasiRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, name])
+  @@map("rekomendasi_fasilitas_filters")
+}
+
 model Rating {
   id           Int @id @default(autoincrement())
   userId       Int
@@ -155,6 +167,8 @@ model RekomendasiRequest {
 
   weights RekomendasiWeight[]
   results RekomendasiHasil[]
+  filters RekomendasiFilter[] //  histori pilihan dropdown filter
+  fasilitasFilters RekomendasiFasilitasFilter[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -204,6 +218,21 @@ model RekomendasiHasilDetail {
   @@map("rekomendasi_hasil_detail")
 }
 
+// menyimpan pilihan dropdown SubKriteria (filter) per request, per kriteria
+model RekomendasiFilter {
+  id            Int @id @default(autoincrement())
+  requestId     Int
+  kriteriaId    Int
+  subKriteriaId Int
+
+  request     RekomendasiRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kriteria    Kriteria           @relation(fields: [kriteriaId], references: [id])
+  subKriteria SubKriteria        @relation(fields: [subKriteriaId], references: [id])
+
+  @@unique([requestId, kriteriaId])
+  @@map("rekomendasi_filters")
+}
+
 model Kriteria {
   id          Int                      @id @default(autoincrement())
   nama        String                   @unique
@@ -212,6 +241,7 @@ model Kriteria {
   subKriteria SubKriteria[]
   weights     RekomendasiWeight[]
   hasilDetail RekomendasiHasilDetail[]
+  filters     RekomendasiFilter[] 
 
   @@map("kriterias")
 }
@@ -224,8 +254,8 @@ model SubKriteria {
   maxNilai   Float?
   skor       Int
 
-  kriteria Kriteria @relation(fields: [kriteriaId], references: [id], onDelete: Cascade)
+  kriteria Kriteria            @relation(fields: [kriteriaId], references: [id], onDelete: Cascade)
+  filters  RekomendasiFilter[] 
 
   @@map("sub_kriterias")
 }
-

@@ -4,16 +4,19 @@ import { FasilitasName } from "@prisma/client";
 
 // Pke metode WP
 //
-// Sekarang jenis kriteria (cost/benefit) diambil dari tabel `Kriteria`,
-// bukan hardcode lagi. Jadi kalau nanti mau ubah Harga jadi benefit
-// (atau nambah kriteria baru), tinggal ubah di database, kode ini
-// otomatis ikut menyesuaikan.
+// Jenis kriteria (cost/benefit) DAN bobot diambil dari tabel `Kriteria`.
+// Customer TIDAK input bobot — bobot udah dikonfigurasi di database
+// (lewat seed atau Prisma Studio), customer cuma pilih FILTER aja.
 //
 // Rumus:
 //   S(i) = Π (skor_kriteria ^ (±bobot))   → pangkat negatif kalau jenis = "cost"
 //   V(i) = S(i) / Σ semua S               → normalisasi
+//
+// Mekanisme filter sebelum WP dihitung:
+// - Harga, FoodKualitas, Kenyamanan, Estetika → dropdown SubKriteria (body.filters, isi subKriteriaId)
+// - Fasilitas → checklist nama fasilitas langsung (body.fasilitasNames, array of FasilitasName)
 
-// key yang dikirim FE (body.weights) → nama Kriteria di database
+// key kriteria → nama Kriteria di database
 const KEY_TO_NAMA: Record<string, string> = {
     harga: "Harga",
     fasilitas: "Fasilitas",
@@ -22,8 +25,7 @@ const KEY_TO_NAMA: Record<string, string> = {
     estetika: "Estetika",
 };
 
-// Helper: cari skor 1-5 untuk avgPrice restaurant berdasarkan rentang
-// yang tersimpan di tabel SubKriteria (bukan hardcode lagi)
+// Helper: cari skor 1-5 untuk avgPrice restaurant berdasarkan rentang SubKriteria
 const getSkorHarga = (
     avgPrice: number,
     subKriteriaHarga: { minNilai: number | null; maxNilai: number | null; skor: number }[]
@@ -33,68 +35,103 @@ const getSkorHarga = (
         const max = sk.maxNilai ?? Infinity;
         if (avgPrice >= min && avgPrice <= max) return sk.skor;
     }
-    // fallback kalau avgPrice di luar semua rentang yang didefinisikan
     return 1;
 };
 
-// Helper: konversi jumlah fasilitas ke skala 1-5 (RANGE TETAP)
-// (tetap hardcode, karena sesuai desain: fasilitas & rating lain
-// sudah alami di skala 1-5, cuma Harga yang butuh tabel SubKriteria)
+// Helper: konversi jumlah fasilitas ke skala 1-5 (tetap dipakai buat hitung WP,
+// meskipun filternya sekarang berbasis nama fasilitas, bukan jumlah)
 const konversiFasilitasKeSkala = (jumlahFasilitas: number): number => {
     if (jumlahFasilitas >= 5) return 5;
     if (jumlahFasilitas <= 0) return 1;
     return jumlahFasilitas;
 };
 
+// Helper: ambil nilai mentah restoran sesuai key kriteria (buat filter SubKriteria)
+const getRawValue = (
+    restaurant: { avgPrice: number; fasilitasScore: number; avgFoodKualitas: number; avgKenyamanan: number; avgEstetika: number },
+    key: string
+): number => {
+    switch (key) {
+        case "harga":
+            return restaurant.avgPrice;
+        case "foodKualitas":
+            return restaurant.avgFoodKualitas;
+        case "kenyamanan":
+            return restaurant.avgKenyamanan;
+        case "estetika":
+            return restaurant.avgEstetika;
+        default:
+            return 0;
+    }
+};
+
 // 1. mendapatkan rekomendasi restaurant
 export const getRekomendasi = async (req: Request, res: Response) => {
     const userId = (req as any).user.userId;
-    const { keyword, maxPrice, category, facilities, weights } = req.body;
+    const { keyword, maxPrice, category, facilities, filters, fasilitasNames } = req.body;
+    // 👆 "weights" DIHAPUS — customer nggak input bobot lagi
 
-    // validasi weights
-    if (!weights) {
-        return res.status(400).json({ message: "Bobot kriteria harus diisi" });
-    }
-
-    const { harga, foodKualitas, kenyamanan, estetika, fasilitas } = weights;
-
-    if (harga === undefined || foodKualitas === undefined ||
-        kenyamanan === undefined || estetika === undefined ||
-        fasilitas === undefined) {
-        return res.status(400).json({ message: "Semua bobot harus diisi" });
-    }
-
-    const totalWeight = harga + foodKualitas + kenyamanan + estetika + fasilitas;
-    if (totalWeight === 0) {
-        return res.status(400).json({ message: "Total bobot tidak boleh 0" });
-    }
-
-    // normalisasi bobot agar totalnya = 1, key-nya masih sesuai input FE
-    const inputWeights: Record<string, number> = {
-        harga: harga / totalWeight,
-        foodKualitas: foodKualitas / totalWeight,
-        kenyamanan: kenyamanan / totalWeight,
-        estetika: estetika / totalWeight,
-        fasilitas: fasilitas / totalWeight,
-    };
-
-    // ambil semua master Kriteria (id + jenis) sekali di awal
+    // ambil semua master Kriteria (id + jenis + bobot) sekali di awal
     const kriteriaList = await prisma.kriteria.findMany();
     if (kriteriaList.length !== 5) {
         return res.status(500).json({ message: "Master data Kriteria belum lengkap, jalankan seed dulu" });
     }
 
-    // map nama -> { id, jenis } biar gampang di-lookup
     const kriteriaByNama = new Map(kriteriaList.map((k) => [k.nama, k]));
 
-    // ambil rentang SubKriteria khusus Harga
+    // Validasi total bobot di database harus = 1 (jaga-jaga kalau ada yang
+    // ubah manual lewat Prisma Studio dan lupa nyesuain totalnya)
+    const totalBobotDb = kriteriaList.reduce((sum, k) => sum + k.bobot, 0);
+    if (Math.abs(totalBobotDb - 1) > 0.001) {
+        return res.status(500).json({ message: "Total bobot Kriteria di database tidak sama dengan 1, cek data Kriteria" });
+    }
+
     const hargaKriteria = kriteriaByNama.get("Harga")!;
     const subKriteriaHarga = await prisma.subKriteria.findMany({
         where: { kriteriaId: hargaKriteria.id },
         orderBy: { minNilai: "asc" },
     });
 
-    // ambil data restaurant sesuai filter (Opsi A: filter dulu, baru WP)
+    // Validasi & ambil detail SubKriteria filter (Harga, FoodKualitas, Kenyamanan, Estetika)
+    // Fasilitas TIDAK masuk sini — ditangani lewat fasilitasNames di bawah.
+    const filterEntries: {
+        key: string;
+        kriteriaId: number;
+        subKriteriaId: number;
+        minNilai: number | null;
+        maxNilai: number | null;
+    }[] = [];
+
+    if (filters) {
+        for (const [key, nama] of Object.entries(KEY_TO_NAMA)) {
+            if (key === "fasilitas") continue; // fasilitas pakai mekanisme checklist, bukan SubKriteria
+
+            const subKriteriaId = filters[key];
+            if (subKriteriaId === undefined || subKriteriaId === null) continue;
+
+            const kriteria = kriteriaByNama.get(nama)!;
+            const sub = await prisma.subKriteria.findUnique({
+                where: { id: Number(subKriteriaId) },
+            });
+
+            if (!sub || sub.kriteriaId !== kriteria.id) {
+                return res.status(400).json({ message: `SubKriteria untuk '${nama}' tidak valid` });
+            }
+
+            filterEntries.push({
+                key,
+                kriteriaId: kriteria.id,
+                subKriteriaId: sub.id,
+                minNilai: sub.minNilai,
+                maxNilai: sub.maxNilai,
+            });
+        }
+    }
+
+    // Validasi fasilitasNames (kalau dikirim)
+    const validFasilitasNames: FasilitasName[] = Array.isArray(fasilitasNames) ? fasilitasNames : [];
+
+    // ambil data restaurant sesuai filter lama (keyword/maxPrice/category/facilities)
     const restaurants = await prisma.restaurant.findMany({
         where: {
             ...(keyword ? {
@@ -130,22 +167,41 @@ export const getRekomendasi = async (req: Request, res: Response) => {
         return res.status(404).json({ message: "Tidak ada restaurant yang sesuai kriteria" });
     }
 
-    // Susun daftar kriteria yang dipakai untuk hitung WP: nama, id, jenis, bobot, skor per restoran
-    // (urutan ini yang dipakai konsisten di seluruh perhitungan & penyimpanan detail)
+    // Filter tambahan: restoran harus punya SEMUA fasilitas yang dicentang customer
+    const filteredByFasilitas = restaurants.filter((r) => {
+        if (validFasilitasNames.length === 0) return true;
+        const namaFasilitasResto = r.fasilitases.map((f) => f.name);
+        return validFasilitasNames.every((nama) => namaFasilitasResto.includes(nama));
+    });
+
+    // Filter tambahan: berdasarkan pilihan dropdown SubKriteria (Harga/FoodKualitas/Kenyamanan/Estetika)
+    const filteredRestaurants = filteredByFasilitas.filter((r) => {
+        return filterEntries.every((f) => {
+            const rawValue = getRawValue(r, f.key);
+            const min = f.minNilai ?? -Infinity;
+            const max = f.maxNilai ?? Infinity;
+            return rawValue >= min && rawValue <= max;
+        });
+    });
+
+    if (filteredRestaurants.length === 0) {
+        return res.status(404).json({ message: "Tidak ada restaurant yang sesuai filter yang dipilih" });
+    }
+
+    // Bobot sekarang diambil LANGSUNG dari database (kolom Kriteria.bobot),
+    // bukan dari input customer lagi.
     const kriteriaTerpakai = Object.entries(KEY_TO_NAMA).map(([key, nama]) => {
         const k = kriteriaByNama.get(nama)!;
         return {
-            key,               // key dari body.weights, misal "harga"
-            nama,              // nama di DB, misal "Harga"
+            key,
+            nama,
             kriteriaId: k.id,
-            jenis: k.jenis,    // "cost" | "benefit"
-            bobot: inputWeights[key]!,
+            jenis: k.jenis,
+            bobot: k.bobot,   // 👈 dari database
         };
     });
 
-    // hitung S(i) untuk setiap restaurant, sambil simpan breakdown per kriteria
-    // hindari nilai 0 agar tidak error saat pangkat (pakai minimal 0.01)
-    const scored = restaurants.map((r) => {
+    const scored = filteredRestaurants.map((r) => {
         const skorPerKriteria: Record<string, number> = {
             harga: Math.max(getSkorHarga(r.avgPrice, subKriteriaHarga), 0.01),
             fasilitas: Math.max(konversiFasilitasKeSkala(r.fasilitasScore), 0.01),
@@ -173,7 +229,6 @@ export const getRekomendasi = async (req: Request, res: Response) => {
         return { restaurant: r, sScore, detailPerKriteria };
     });
 
-    // hitung V(i) = normalisasi
     const totalScore = scored.reduce((sum, s) => sum + s.sScore, 0);
 
     const ranked = scored
@@ -181,7 +236,7 @@ export const getRekomendasi = async (req: Request, res: Response) => {
         .sort((a, b) => b.vScore - a.vScore)
         .map((s, index) => ({ ...s, rank: index + 1 }));
 
-    // simpan request, weights, hasil, DAN breakdown detail ke DB
+    // simpan request, weights (dari DB), filters, fasilitasFilters, hasil, dan breakdown detail
     const request = await prisma.rekomendasiRequest.create({
         data: {
             userId,
@@ -194,6 +249,15 @@ export const getRekomendasi = async (req: Request, res: Response) => {
                     kriteriaId: kt.kriteriaId,
                     weight: kt.bobot,
                 })),
+            },
+            filters: {
+                create: filterEntries.map((f) => ({
+                    kriteriaId: f.kriteriaId,
+                    subKriteriaId: f.subKriteriaId,
+                })),
+            },
+            fasilitasFilters: {
+                create: validFasilitasNames.map((name) => ({ name })),
             },
             results: {
                 create: ranked.map((r) => ({
@@ -213,7 +277,8 @@ export const getRekomendasi = async (req: Request, res: Response) => {
         },
     });
 
-    // return hasil (termasuk breakdown biar FE bisa nampilin tabel perhitungan)
+    // return hasil (breakdown tetap nunjukin bobot yang dipakai — informasi transparansi,
+    // bukan input, jadi tetap aman ditampilin ke customer di bagian detail hasil)
     const result = ranked.map((r) => ({
         rank: r.rank,
         wpScore: parseFloat(r.vScore.toFixed(4)),
@@ -256,6 +321,8 @@ export const getRekomendasiHistory = async (req: Request, res: Response) => {
         where: { userId },
         include: {
             weights: { include: { kriteria: true } },
+            filters: { include: { kriteria: true, subKriteria: true } },
+            fasilitasFilters: true,
             results: {
                 include: {
                     restaurant: {
@@ -272,7 +339,7 @@ export const getRekomendasiHistory = async (req: Request, res: Response) => {
     res.json(history);
 };
 
-// 3. menampilkan detail rekomendasi berdasarkan id (termasuk breakdown per kriteria)
+// 3. menampilkan detail rekomendasi berdasarkan id
 export const getRekomendasiDetail = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const userId = (req as any).user.userId;
@@ -281,6 +348,8 @@ export const getRekomendasiDetail = async (req: Request, res: Response) => {
         where: { id },
         include: {
             weights: { include: { kriteria: true } },
+            filters: { include: { kriteria: true, subKriteria: true } },
+            fasilitasFilters: true,
             results: {
                 include: {
                     restaurant: { include: { fasilitases: true } },
