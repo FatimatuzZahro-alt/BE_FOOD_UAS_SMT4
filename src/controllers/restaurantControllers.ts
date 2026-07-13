@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import  prisma  from "../lib/db.js";
-
+import { FasilitasName, RestaurantCategory } from "@prisma/client";
 
 // 1. menampilkan data categori
 export const getAllRestaurants = async (req: Request, res: Response) => {
@@ -18,7 +18,7 @@ export const getAllRestaurants = async (req: Request, res: Response) => {
             ...(fasilitas ? {
                 fasilitases: {
                     some: {
-                        name: { contains: String(fasilitas) },
+                        name: fasilitas as FasilitasName,
                         available: true
                     }
                 }
@@ -81,11 +81,17 @@ export const getMyRestaurant = async (req: Request, res: Response) => {
 
 // 4. Membuat resto baru
 export const createRestaurant = async (req: Request, res: Response) => {
-  const { name, address, description, imageUrl, phone, openTime, closeTime } = req.body;
+  const { name, address, description, imageUrl, phone, openTime, closeTime, category } = req.body;
   const adminId = (req as any).user.userId;
 
   if (!name || !address) {
     return res.status(400).json({message: "Nama dan alamat harus diisi!" });
+  }
+
+  if (!category || !Object.values(RestaurantCategory).includes(category)) {
+    return res.status(400).json({
+      message: `Kategori restaurant tidak valid. Pilih salah satu: ${Object.values(RestaurantCategory).join(", ")}`
+    });
   }
 
   const existing = await prisma.restaurant.findUnique({ where: { adminId } });
@@ -94,7 +100,7 @@ export const createRestaurant = async (req: Request, res: Response) => {
   }
 
   const restaurant = await prisma.restaurant.create({
-    data: { name, address, description, imageUrl, phone, openTime, closeTime, adminId }
+    data: { name, address, description, imageUrl, phone, openTime, closeTime, category, adminId }
   });
 
   res.status(201).json({ message: "Restaurant berhasil dibuat", data: restaurant });

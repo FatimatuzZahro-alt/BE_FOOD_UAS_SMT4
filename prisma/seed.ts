@@ -31,6 +31,9 @@ async function main() {
   // Rentang ini contoh — sesuaikan dengan avgPrice riil restoran di data kamu.
   // Karena Harga = cost, rentang termurah dapat skor tertinggi (5).
   const hargaId = kriteriaMap["Harga"];
+  if (hargaId === undefined) {
+  throw new Error("Kriteria 'Harga' tidak ditemukan di kriteriaMap — cek langkah seeding Kriteria di atas.");
+}
 
   const subKriteriaHarga = [
     { keterangan: "≤ Rp 10.000", minNilai: 0, maxNilai: 10000, skor: 5 },
