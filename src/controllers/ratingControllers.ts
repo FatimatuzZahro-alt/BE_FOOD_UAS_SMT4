@@ -1,14 +1,21 @@
 import { Request, Response } from "express";
-import  prisma  from "../lib/db.js";
+import prisma from "../lib/db.js";
 
-// 1. menampilkan semua rating berdasarkan restaurant
+// 1. Menampilkan semua rating berdasarkan restaurant (DIUBAH: Include Email User)
 export const getRatingByRestaurant = async (req: Request, res: Response) => {
     const restaurantId = Number(req.params.restaurantId);
 
     const ratings = await prisma.rating.findMany({
         where: { restaurantId },
         include: {
-            user: { select: { id: true, name: true } }
+            // Di sini email user ditambahkan agar bisa dibaca di Rating Logs Admin
+            user: { 
+                select: { 
+                    id: true, 
+                    name: true,
+                    email: true 
+                } 
+            }
         },
         orderBy: { createdAt: "desc" }
     });
@@ -16,7 +23,7 @@ export const getRatingByRestaurant = async (req: Request, res: Response) => {
     res.json(ratings);
 }
 
-// 2. menambahkan rating baru
+// 2. Menambahkan rating baru
 export const createRating = async (req: Request, res: Response) => {
     const restaurantId = Number(req.params.restaurantId);
     const userId = (req as any).user.userId;
@@ -26,7 +33,7 @@ export const createRating = async (req: Request, res: Response) => {
         return res.status(400).json({ message: "Semua score harus diisi" });
     }
 
-    // validasi range 1-5
+    // Validasi range 1-5
     if (foodKualitasScore < 1 || foodKualitasScore > 5 ||
         kenyamananScore < 1 || kenyamananScore > 5 ||
         estetikaScore < 1 || estetikaScore > 5) {
@@ -38,12 +45,12 @@ export const createRating = async (req: Request, res: Response) => {
         return res.status(404).json({ message: "Restaurant tidak ditemukan" });
     }
 
-    // cek apakah user adalah admin restaurant ini
+    // Cek apakah user adalah admin restaurant ini
     if (restaurant.adminId === userId) {
         return res.status(403).json({ message: "Admin tidak bisa memberi rating restaurantnya sendiri" });
     }
 
-    // cek apakah user sudah pernah rating restaurant ini
+    // Cek apakah user sudah pernah rating restaurant ini
     const existing = await prisma.rating.findUnique({
         where: {
             userId_restaurantId: { userId, restaurantId }
@@ -65,13 +72,13 @@ export const createRating = async (req: Request, res: Response) => {
         }
     });
 
-    // update avg rating restaurant
+    // Update avg rating restaurant
     await recalcRestaurantRating(restaurantId);
 
     res.status(201).json({ message: "Rating berhasil ditambahkan", data: rating });
 }
 
-// 3. mengupdate rating berdasarkan id
+// 3. Mengupdate rating berdasarkan id
 export const updateRating = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const userId = (req as any).user.userId;
@@ -101,7 +108,7 @@ export const updateRating = async (req: Request, res: Response) => {
     res.json({ message: "Rating berhasil diupdate", data: updated });
 }
 
-// 4. menghapus rating berdasarkan id
+// 4. Menghapus rating berdasarkan id
 export const deleteRating = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const userId = (req as any).user.userId;
@@ -145,7 +152,7 @@ const recalcRestaurantRating = async (restaurantId: number) => {
     });
 }
 
-// 5. menampilkan riwayat rating milik user yang login
+// 5. Menampilkan riwayat rating milik user yang login
 export const getMyRatings = async (req: Request, res: Response) => {
     const userId = (req as any).user.userId;
 

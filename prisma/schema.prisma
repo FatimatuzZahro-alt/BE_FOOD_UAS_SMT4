@@ -7,8 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-// ENUM
+// ENUMS
 
 enum Role {
   CUSTOMER
@@ -23,7 +22,23 @@ enum MenuCategory {
   SNACK
 }
 
-// USER
+//TAMBAHAN ENUM: Klasifikasi format pelayanan untuk kebutuhan perhitungan SPK
+enum RestaurantCategory {
+  FAST_FOOD
+  CAFE_COFFEE
+  FAMILY_FRIENDLY
+  FINE_DINING
+}
+
+enum FasilitasName {
+  AC
+  MUSHOLA
+  KAMAR_MANDI
+  WIFI
+  SMOKING_AREA
+}
+
+// MODELS
 
 model User {
   id        Int      @id @default(autoincrement())
@@ -41,20 +56,20 @@ model User {
   @@map("users")
 }
 
-
-// RESTAURANT
-
 model Restaurant {
-  id          Int     @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
   address     String
-  description String? @db.Text
-  imageUrl    String? @db.Text
+  description String?  @db.Text
+  imageUrl    String?  @db.Text
   phone       String?
   openTime    String?
   closeTime   String?
-  adminId     Int     @unique
-  admin       User    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  adminId     Int      @unique
+  admin       User     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  // 🛠️ TAMBAHAN FIELD: Menyimpan jenis klasifikasi restoran
+  category    RestaurantCategory
 
   avgPrice        Float @default(0)
   fasilitasScore  Int   @default(0)
@@ -72,12 +87,9 @@ model Restaurant {
   rekomendasiResults RekomendasiHasil[]
 
   @@index([avgPrice])
-  @@index([avgFoodKualitas]) // ← sesuai nama kolom
+  @@index([avgFoodKualitas])
   @@map("restaurants")
 }
-
-
-// MENU
 
 model Menu {
   id           Int          @id @default(autoincrement())
@@ -98,23 +110,17 @@ model Menu {
   @@map("menus")
 }
 
-
-// FASILITAS
-
 model Fasilitas {
-  id           Int     @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   restaurantId Int
-  name         String
-  available    Boolean @default(true)
+  name         FasilitasName
+  available    Boolean       @default(true)
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@unique([restaurantId, name])
   @@map("fasilitases")
 }
-
-
-// RATING
 
 model Rating {
   id           Int @id @default(autoincrement())
@@ -129,6 +135,7 @@ model Rating {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // RELASI USER: Dipakai untuk menarik properti `user.email` saat include di rating logs admin
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -136,10 +143,6 @@ model Rating {
   @@index([restaurantId])
   @@map("ratings")
 }
-
-
-// REKOMENDASI REQUEST
-// Dibuat oleh CUSTOMER setiap kali submit form "Konfigurasi Perhitungan"
 
 model RekomendasiRequest {
   id         Int      @id @default(autoincrement())
@@ -158,12 +161,8 @@ model RekomendasiRequest {
   @@map("rekomendasi_requests")
 }
 
-
-// REKOMENDASI WEIGHT
-// Bobot tiap kriteria (C1-C5) yang diinput customer, per request
-
 model RekomendasiWeight {
-  id         Int   @id @default(autoincrement())
+  id         Int @id @default(autoincrement())
   requestId  Int
   kriteriaId Int
   weight     Float
@@ -175,12 +174,8 @@ model RekomendasiWeight {
   @@map("rekomendasi_weights")
 }
 
-
-// REKOMENDASI HASIL
-// Summary hasil akhir WP: ranking + skor per restoran, per request
-
 model RekomendasiHasil {
-  id           Int   @id @default(autoincrement())
+  id           Int @id @default(autoincrement())
   requestId    Int
   restaurantId Int
   rank         Int
@@ -194,19 +189,13 @@ model RekomendasiHasil {
   @@map("rekomendasi_hasil")
 }
 
-
-// REKOMENDASI HASIL DETAIL
-// Breakdown skor per-kriteria per-restoran, dipakai untuk menampilkan
-// tabel perhitungan SPK di FE (skor mentah, bobot yang dipakai, dan
-// nilai ternormalisasi / skor^bobot sesuai rumus WP)
-
 model RekomendasiHasilDetail {
   id                  Int   @id @default(autoincrement())
   hasilId             Int
   kriteriaId          Int
-  skor                Float // nilai 1-5: dari SubKriteria (harga), fasilitasScore, atau avg rating
-  bobot               Float // salinan weight yang dipakai saat perhitungan ini
-  nilaiTernormalisasi Float // skor ^ bobot (komponen vektor S sebelum dibagi total)
+  skor                Float
+  bobot               Float
+  nilaiTernormalisasi Float
 
   hasil    RekomendasiHasil @relation(fields: [hasilId], references: [id], onDelete: Cascade)
   kriteria Kriteria         @relation(fields: [kriteriaId], references: [id])
@@ -215,17 +204,11 @@ model RekomendasiHasilDetail {
   @@map("rekomendasi_hasil_detail")
 }
 
-
-// KRITERIA
-// Master data 5 kriteria: Harga, Fasilitas, FoodKualitas, Kenyamanan, Estetika
-// field `bobot` = nilai default yang tampil di FE sebelum customer mengubahnya sendiri
-
 model Kriteria {
-  id          Int    @id @default(autoincrement())
-  nama        String @unique
-  jenis       String // "cost" atau "benefit"
-  bobot       Float  @default(0)
-
+  id          Int                      @id @default(autoincrement())
+  nama        String                   @unique
+  jenis       String
+  bobot       Float                    @default(0)
   subKriteria SubKriteria[]
   weights     RekomendasiWeight[]
   hasilDetail RekomendasiHasilDetail[]
@@ -233,21 +216,16 @@ model Kriteria {
   @@map("kriterias")
 }
 
-
-// SUB KRITERIA
-// Rentang nilai -> skor. Saat ini HANYA dipakai untuk kriteria "Harga"
-// (Fasilitas, FoodKualitas, Kenyamanan, Estetika sudah punya skala 1-5
-// langsung dari data lain, jadi tidak butuh baris di tabel ini)
-
 model SubKriteria {
   id         Int    @id @default(autoincrement())
   kriteriaId Int
-  keterangan String // contoh: "Rp 0 - Rp 10.000"
-  minNilai   Float? // 0
-  maxNilai   Float? // 10000
-  skor       Int    // 1-5
+  keterangan String
+  minNilai   Float?
+  maxNilai   Float?
+  skor       Int
 
   kriteria Kriteria @relation(fields: [kriteriaId], references: [id], onDelete: Cascade)
 
   @@map("sub_kriterias")
 }
+

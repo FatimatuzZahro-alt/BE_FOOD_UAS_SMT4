@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
-import  prisma  from "../lib/db.js";
+import prisma from "../lib/db.js";
+import { FasilitasName } from "@prisma/client";
+
+const VALID_FASILITAS = Object.values(FasilitasName);
 
 // 1. menampilkan fasilitas berdasarkan restaurant
 export const getFasilitasByRestaurant = async (req: Request, res: Response) => {
@@ -17,8 +20,10 @@ export const addFasilitas = async (req: Request, res: Response) => {
     const adminId = (req as any).user.userId;
     const { name, available } = req.body;
 
-    if (!name) {
-        return res.status(400).json({ message: "Nama fasilitas harus diisi" });
+    if (!name || !VALID_FASILITAS.includes(name)) {
+        return res.status(400).json({
+            message: `Nama fasilitas tidak valid. Pilih salah satu: ${VALID_FASILITAS.join(", ")}`
+        });
     }
 
     const restaurant = await prisma.restaurant.findUnique({ where: { adminId } });
@@ -31,7 +36,7 @@ export const addFasilitas = async (req: Request, res: Response) => {
         where: {
             restaurantId_name: {
                 restaurantId: restaurant.id,
-                name
+                name: name as FasilitasName
             }
         }
     });
@@ -42,13 +47,12 @@ export const addFasilitas = async (req: Request, res: Response) => {
 
     const fasilitas = await prisma.fasilitas.create({
         data: {
-            name,
+            name: name as FasilitasName,
             available: available ?? true,
             restaurantId: restaurant.id
         }
     });
 
-    // update fasilitasScore restaurant
     await recalcFasilitasScore(restaurant.id);
 
     res.status(201).json({ message: "Fasilitas berhasil ditambahkan", data: fasilitas });
@@ -59,6 +63,12 @@ export const updateFasilitas = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const adminId = (req as any).user.userId;
     const { name, available } = req.body;
+
+    if (name && !VALID_FASILITAS.includes(name)) {
+        return res.status(400).json({
+            message: `Nama fasilitas tidak valid. Pilih salah satu: ${VALID_FASILITAS.join(", ")}`
+        });
+    }
 
     const restaurant = await prisma.restaurant.findUnique({ where: { adminId } });
     if (!restaurant) {
@@ -72,7 +82,10 @@ export const updateFasilitas = async (req: Request, res: Response) => {
 
     const updated = await prisma.fasilitas.update({
         where: { id },
-        data: { name, available }
+        data: {
+            name: name ? (name as FasilitasName) : undefined,
+            available
+        }
     });
 
     await recalcFasilitasScore(restaurant.id);
@@ -80,7 +93,7 @@ export const updateFasilitas = async (req: Request, res: Response) => {
     res.json({ message: "Fasilitas berhasil diupdate", data: updated });
 }
 
-// 4. menghapus fasilitas berdasarkan id
+// 4. menghapus fasilitas berdasarkan id — TIDAK BERUBAH
 export const deleteFasilitas = async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const adminId = (req as any).user.userId;
@@ -102,7 +115,7 @@ export const deleteFasilitas = async (req: Request, res: Response) => {
     res.json({ message: "Fasilitas berhasil dihapus" });
 }
 
-// hitung jumlah fasilitas yang available 
+// hitung jumlah fasilitas yang available — TIDAK BERUBAH
 const recalcFasilitasScore = async (restaurantId: number) => {
     const count = await prisma.fasilitas.count({
         where: { restaurantId, available: true }
