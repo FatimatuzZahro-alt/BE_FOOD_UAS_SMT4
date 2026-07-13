@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/db.js";
+import { FasilitasName } from "@prisma/client";
 
 // Pke metode WP
 //
@@ -114,7 +115,7 @@ export const getRekomendasi = async (req: Request, res: Response) => {
             ...(facilities ? {
                 fasilitases: {
                     some: {
-                        name: { contains: String(facilities) },
+                        name: facilities as FasilitasName,
                         available: true
                     }
                 }
