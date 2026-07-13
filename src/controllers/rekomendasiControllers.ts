@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../lib/db.js";
-import { FasilitasName } from "@prisma/client";
+import { FasilitasName, RestaurantCategory, MenuCategory } from "@prisma/client";
 
 // Pke metode WP
 //
@@ -15,6 +15,8 @@ import { FasilitasName } from "@prisma/client";
 // Mekanisme filter sebelum WP dihitung:
 // - Harga, FoodKualitas, Kenyamanan, Estetika → dropdown SubKriteria (body.filters, isi subKriteriaId)
 // - Fasilitas → checklist nama fasilitas langsung (body.fasilitasNames, array of FasilitasName)
+// - category → filter kategori RESTORAN (RestaurantCategory: FAST_FOOD, CAFE_COFFEE, dst)
+// - menuCategory → filter kategori MENU (MenuCategory: MAKANAN, MINUMAN, dst)
 
 // key kriteria → nama Kriteria di database
 const KEY_TO_NAMA: Record<string, string> = {
@@ -68,8 +70,18 @@ const getRawValue = (
 // 1. mendapatkan rekomendasi restaurant
 export const getRekomendasi = async (req: Request, res: Response) => {
     const userId = (req as any).user.userId;
-    const { keyword, maxPrice, category, facilities, filters, fasilitasNames } = req.body;
+    const { keyword, maxPrice, category, menuCategory, facilities, filters, fasilitasNames } = req.body;
     // 👆 "weights" DIHAPUS — customer nggak input bobot lagi
+    // 👆 "category" = filter RestaurantCategory, "menuCategory" = filter MenuCategory (dua hal beda)
+
+    // Validasi awal: pastikan value enum yang dikirim valid, biar nggak jadi
+    // PrismaClientValidationError (500) kalau salah ketik / salah value dari frontend.
+    if (category && !Object.values(RestaurantCategory).includes(category)) {
+        return res.status(400).json({ message: `Category restoran '${category}' tidak valid` });
+    }
+    if (menuCategory && !Object.values(MenuCategory).includes(menuCategory)) {
+        return res.status(400).json({ message: `Category menu '${menuCategory}' tidak valid` });
+    }
 
     // ambil semua master Kriteria (id + jenis + bobot) sekali di awal
     const kriteriaList = await prisma.kriteria.findMany();
@@ -86,7 +98,10 @@ export const getRekomendasi = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Total bobot Kriteria di database tidak sama dengan 1, cek data Kriteria" });
     }
 
-    const hargaKriteria = kriteriaByNama.get("Harga")!;
+    const hargaKriteria = kriteriaByNama.get("Harga");
+    if (!hargaKriteria) {
+        return res.status(500).json({ message: "Kriteria 'Harga' tidak ditemukan di database, cek data Kriteria" });
+    }
     const subKriteriaHarga = await prisma.subKriteria.findMany({
         where: { kriteriaId: hargaKriteria.id },
         orderBy: { minNilai: "asc" },
@@ -107,11 +122,20 @@ export const getRekomendasi = async (req: Request, res: Response) => {
             if (key === "fasilitas") continue; // fasilitas pakai mekanisme checklist, bukan SubKriteria
 
             const subKriteriaId = filters[key];
-            if (subKriteriaId === undefined || subKriteriaId === null) continue;
+            if (subKriteriaId === undefined || subKriteriaId === null || subKriteriaId === "") continue;
 
-            const kriteria = kriteriaByNama.get(nama)!;
+            const parsedSubKriteriaId = Number(subKriteriaId);
+            if (!Number.isFinite(parsedSubKriteriaId)) {
+                return res.status(400).json({ message: `SubKriteria untuk '${nama}' harus berupa angka` });
+            }
+
+            const kriteria = kriteriaByNama.get(nama);
+            if (!kriteria) {
+                return res.status(500).json({ message: `Kriteria '${nama}' tidak ditemukan di database` });
+            }
+
             const sub = await prisma.subKriteria.findUnique({
-                where: { id: Number(subKriteriaId) },
+                where: { id: parsedSubKriteriaId },
             });
 
             if (!sub || sub.kriteriaId !== kriteria.id) {
@@ -131,7 +155,7 @@ export const getRekomendasi = async (req: Request, res: Response) => {
     // Validasi fasilitasNames (kalau dikirim)
     const validFasilitasNames: FasilitasName[] = Array.isArray(fasilitasNames) ? fasilitasNames : [];
 
-    // ambil data restaurant sesuai filter lama (keyword/maxPrice/category/facilities)
+    // ambil data restaurant sesuai filter lama (keyword/maxPrice/category/menuCategory/facilities)
     const restaurants = await prisma.restaurant.findMany({
         where: {
             ...(keyword ? {
@@ -142,9 +166,12 @@ export const getRekomendasi = async (req: Request, res: Response) => {
             } : {}),
             ...(maxPrice ? { avgPrice: { lte: Number(maxPrice) } } : {}),
             ...(category ? {
+                category: category as RestaurantCategory   // filter kategori RESTORAN
+            } : {}),
+            ...(menuCategory ? {
                 menus: {
                     some: {
-                        category: category as any,
+                        category: menuCategory as MenuCategory,   // filter kategori MENU
                         isAvailable: true
                     }
                 }
