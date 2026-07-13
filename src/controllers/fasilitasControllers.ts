@@ -80,12 +80,13 @@ export const updateFasilitas = async (req: Request, res: Response) => {
         return res.status(404).json({ message: "Fasilitas tidak ditemukan" });
     }
 
+    const dataToUpdate: { name?: FasilitasName; available?: boolean } = {};
+    if (name) dataToUpdate.name = name as FasilitasName;
+    if (available !== undefined) dataToUpdate.available = available;
+
     const updated = await prisma.fasilitas.update({
         where: { id },
-        data: {
-            name: name ? (name as FasilitasName) : undefined,
-            available
-        }
+        data: dataToUpdate
     });
 
     await recalcFasilitasScore(restaurant.id);
