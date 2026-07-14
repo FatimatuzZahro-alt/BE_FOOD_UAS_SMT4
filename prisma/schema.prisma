@@ -157,17 +157,18 @@ model Rating {
 }
 
 model RekomendasiRequest {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  keyword    String?
-  maxPrice   Float?
-  category   String?
-  facilities String?
-  createdAt  DateTime @default(now())
+  id           Int                 @id @default(autoincrement())
+  userId       Int
+  
+  // Perbaikan tipe data menjadi Enum & menghapus kolom jadul
+  category     RestaurantCategory?
+  menuCategory MenuCategory?
+  
+  createdAt    DateTime            @default(now())
 
-  weights RekomendasiWeight[]
-  results RekomendasiHasil[]
-  filters RekomendasiFilter[] //  histori pilihan dropdown filter
+  weights          RekomendasiWeight[]
+  results          RekomendasiHasil[]
+  filters          RekomendasiFilter[] 
   fasilitasFilters RekomendasiFasilitasFilter[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -176,7 +177,7 @@ model RekomendasiRequest {
 }
 
 model RekomendasiWeight {
-  id         Int @id @default(autoincrement())
+  id         Int   @id @default(autoincrement())
   requestId  Int
   kriteriaId Int
   weight     Float
@@ -189,7 +190,7 @@ model RekomendasiWeight {
 }
 
 model RekomendasiHasil {
-  id           Int @id @default(autoincrement())
+  id           Int   @id @default(autoincrement())
   requestId    Int
   restaurantId Int
   rank         Int
